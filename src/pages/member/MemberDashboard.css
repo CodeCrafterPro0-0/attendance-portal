@@ -1,0 +1,200 @@
+.member-dashboard {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.member-dashboard-header {
+    margin-bottom: 28px;
+}
+
+.member-dashboard-header h1 {
+    margin: 0;
+    font-size: 30px;
+    color: #111827;
+}
+
+.member-dashboard-header p {
+    margin: 6px 0 0;
+    color: #6b7280;
+}
+
+.member-dashboard-section {
+    padding: 24px;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+}
+
+.member-dashboard-section h2 {
+    margin-top: 0;
+    color: #111827;
+}
+
+.member-dashboard-section p {
+    color: #6b7280;
+}
+
+.member-dashboard-error {
+    margin-bottom: 20px;
+    padding: 14px 16px;
+    border-radius: 8px;
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.member-dashboard-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 28px;
+}
+
+.member-logout-button {
+    padding: 10px 16px;
+    border: 0;
+    border-radius: 8px;
+    background: #111827;
+    color: #ffffff;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+.member-logout-button:hover {
+    background: #1f2937;
+}
+
+.member-attendance-card {
+    padding: 24px;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+}
+
+.member-attendance-label {
+    display: block;
+    margin-bottom: 12px;
+    color: #6b7280;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.member-attendance-percentage {
+    display: block;
+    font-size: 36px;
+    color: #111827;
+}
+
+.member-attendance-card p {
+    margin: 6px 0 0;
+    color: #6b7280;
+    font-size: 14px;
+}
+
+.member-history-section {
+    margin-top: 24px;
+    padding: 24px;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+}
+
+.member-history-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.member-history-header h2 {
+    margin: 0;
+    color: #111827;
+    font-size: 20px;
+}
+
+.member-history-header select {
+    padding: 9px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    background: #ffffff;
+    color: #111827;
+    cursor: pointer;
+}
+
+.member-history-list {
+    border-top: 1px solid #e5e7eb;
+}
+
+.member-history-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 64px;
+    padding: 12px 4px;
+    border-bottom: 1px solid #f0f1f3;
+}
+
+.member-history-date {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.member-history-date strong {
+    width: 32px;
+    font-size: 16px;
+    color: #111827;
+}
+
+.member-history-date span {
+    color: #6b7280;
+    font-size: 14px;
+}
+
+.member-history-status {
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.status-present {
+    color: #166534;
+    background: #dcfce7;
+}
+
+.status-late {
+    color: #92400e;
+    background: #fef3c7;
+}
+
+.status-absent {
+    color: #991b1b;
+    background: #fee2e2;
+}
+
+.status-early-leave {
+    color: #9a3412;
+    background: #ffedd5;
+}
+
+.status-forgotten {
+    color: #6b21a8;
+    background: #f3e8ff;
+}
+
+.status-not-marked {
+    color: #4b5563;
+    background: #f3f4f6;
+}
+
+@media (max-width: 600px) {
+    .member-history-header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .member-history-header select {
+        width: 100%;
+    }
+}
