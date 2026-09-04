@@ -12,8 +12,6 @@ function getDate(offset = 0) {
 function getWeekStart() {
     const date = new Date();
 
-    // Sunday = 0
-    // Convert to Monday-based week
     const day = date.getDay();
     const difference = day === 0 ? -6 : 1 - day;
 
@@ -32,8 +30,9 @@ function AdminDashboard() {
         absent: 0,
     });
 
-    const [presentLeaderboard, setPresentLeaderboard] = useState([]);
-    const [absentLeaderboard, setAbsentLeaderboard] = useState([]);
+    const [leaderboard, setLeaderboard] = useState([]);
+    const [leaderboardMode, setLeaderboardMode] =
+        useState("present");
 
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
@@ -63,7 +62,9 @@ function AdminDashboard() {
 
         if (membersError) {
             console.error(membersError);
-            setError("Unable to load dashboard statistics.");
+            setError(
+                "Unable to load dashboard statistics."
+            );
             setLoading(false);
             return;
         }
@@ -81,7 +82,9 @@ function AdminDashboard() {
 
         if (todayAttendanceError) {
             console.error(todayAttendanceError);
-            setError("Unable to load attendance statistics.");
+            setError(
+                "Unable to load attendance statistics."
+            );
             setLoading(false);
             return;
         }
@@ -101,12 +104,15 @@ function AdminDashboard() {
 
         if (weeklyAttendanceError) {
             console.error(weeklyAttendanceError);
-            setError("Unable to load weekly attendance.");
+            setError(
+                "Unable to load weekly attendance."
+            );
             setLoading(false);
             return;
         }
 
         // Today's statistics
+
         const present = todayAttendance.filter(
             (record) =>
                 record.status === "present"
@@ -137,23 +143,30 @@ function AdminDashboard() {
                 !record.inattentive
         ).length;
 
-        // Get member names for leaderboard
+        // Get all members
+
         const {
             data: members,
             error: leaderboardMembersError,
         } = await supabase
             .from("profiles")
             .select("id, full_name")
-            .eq("role", "member");
+            .eq("role", "member")
+            .order("full_name", {
+                ascending: true,
+            });
 
         if (leaderboardMembersError) {
-            console.error(leaderboardMembersError);
+            console.error(
+                leaderboardMembersError
+            );
             setError("Unable to load leaderboard.");
             setLoading(false);
             return;
         }
 
-        // Create a count for every member
+        // Create stats for every member
+
         const memberStats = {};
 
         members.forEach((member) => {
@@ -165,48 +178,31 @@ function AdminDashboard() {
             };
         });
 
-        // Count weekly attendance
+        // Calculate weekly attendance
+
         weeklyAttendance.forEach((record) => {
-            const member = memberStats[record.member_id];
+            const member =
+                memberStats[record.member_id];
 
             if (!member) {
                 return;
             }
 
-            // Present and Late both count as attended
+            // Present + Late = attended
             if (record.status === "present") {
                 member.present += 1;
             }
 
-            // Absent, Early Leave and Inattentive all count as absent
+            // Absent + Early Leave + Inattentive = absent
             if (record.status === "absent") {
                 member.absent += 1;
             }
         });
 
-        const leaderboardMembers = Object.values(memberStats);
+        const allMembers =
+            Object.values(memberStats);
 
-        // Top 5 Present
-        const topPresent = [...leaderboardMembers]
-            .sort((a, b) => {
-                if (b.present !== a.present) {
-                    return b.present - a.present;
-                }
-
-                return b.absent - a.absent;
-            })
-            .slice(0, 5);
-
-        // Top 5 Absent
-        const topAbsent = [...leaderboardMembers]
-            .sort((a, b) => {
-                if (b.absent !== a.absent) {
-                    return b.absent - a.absent;
-                }
-
-                return a.present - b.present;
-            })
-            .slice(0, 5);
+        setLeaderboard(allMembers);
 
         setStats({
             totalMembers: totalMembers ?? 0,
@@ -217,17 +213,37 @@ function AdminDashboard() {
             absent,
         });
 
-        setPresentLeaderboard(topPresent);
-        setAbsentLeaderboard(topAbsent);
-
         setLoading(false);
     }
+
+    const sortedLeaderboard = [...leaderboard].sort(
+        (a, b) => {
+            if (leaderboardMode === "present") {
+                if (b.present !== a.present) {
+                    return b.present - a.present;
+                }
+
+                return a.full_name.localeCompare(
+                    b.full_name
+                );
+            }
+
+            if (b.absent !== a.absent) {
+                return b.absent - a.absent;
+            }
+
+            return a.full_name.localeCompare(
+                b.full_name
+            );
+        }
+    );
 
     return (
         <section className="dashboard">
             <div className="dashboard-header">
                 <div>
                     <h1>Dashboard</h1>
+
                     <p>
                         Overview of today's attendance.
                     </p>
@@ -238,7 +254,9 @@ function AdminDashboard() {
                     onClick={loadDashboardStats}
                     disabled={loading}
                 >
-                    {loading ? "Loading..." : "Refresh"}
+                    {loading
+                        ? "Loading..."
+                        : "Refresh"}
                 </button>
             </div>
 
@@ -247,6 +265,8 @@ function AdminDashboard() {
                     {error}
                 </div>
             )}
+
+            {/* Statistics */}
 
             <div className="stats-grid">
                 <div className="stat-card">
@@ -322,31 +342,75 @@ function AdminDashboard() {
                 </div>
             </div>
 
-            <div className="leaderboards">
-                {/* Present Leaderboard */}
+            {/* Leaderboard */}
 
-                <div className="leaderboard-card">
-                    <div className="leaderboard-header">
-                        <div>
-                            <h2>🏆 Most Present</h2>
-                            <p>
-                                Top members this week
-                            </p>
-                        </div>
+            <div className="leaderboard-card">
+                <div className="leaderboard-header">
+                    <div>
+                        <h2>Weekly Leaderboard</h2>
+
+                        <p>
+                            Attendance performance this
+                            week.
+                        </p>
                     </div>
 
-                    {loading ? (
-                        <div className="leaderboard-loading">
-                            Loading leaderboard...
-                        </div>
-                    ) : presentLeaderboard.length === 0 ? (
-                        <div className="leaderboard-empty">
-                            No attendance records this week.
-                        </div>
-                    ) : (
-                        <div className="leaderboard-list">
-                            {presentLeaderboard.map(
-                                (member, index) => (
+                    <div className="leaderboard-toggle">
+                        <button
+                            type="button"
+                            className={
+                                leaderboardMode ===
+                                "present"
+                                    ? "active"
+                                    : ""
+                            }
+                            onClick={() =>
+                                setLeaderboardMode(
+                                    "present"
+                                )
+                            }
+                        >
+                            Most Present
+                        </button>
+
+                        <button
+                            type="button"
+                            className={
+                                leaderboardMode ===
+                                "absent"
+                                    ? "active"
+                                    : ""
+                            }
+                            onClick={() =>
+                                setLeaderboardMode(
+                                    "absent"
+                                )
+                            }
+                        >
+                            Most Absent
+                        </button>
+                    </div>
+                </div>
+
+                {loading ? (
+                    <div className="leaderboard-loading">
+                        Loading leaderboard...
+                    </div>
+                ) : sortedLeaderboard.length === 0 ? (
+                    <div className="leaderboard-empty">
+                        No members have been added yet.
+                    </div>
+                ) : (
+                    <div className="leaderboard-list">
+                        {sortedLeaderboard.map(
+                            (member, index) => {
+                                const count =
+                                    leaderboardMode ===
+                                    "present"
+                                        ? member.present
+                                        : member.absent;
+
+                                return (
                                     <div
                                         className="leaderboard-row"
                                         key={member.id}
@@ -358,97 +422,40 @@ function AdminDashboard() {
                                         <div className="leaderboard-member">
                                             <div className="leaderboard-avatar">
                                                 {member.full_name
-                                                    .charAt(0)
+                                                    .charAt(
+                                                        0
+                                                    )
                                                     .toUpperCase()}
                                             </div>
 
                                             <strong>
-                                                {member.full_name}
+                                                {
+                                                    member.full_name
+                                                }
                                             </strong>
                                         </div>
 
                                         <div className="leaderboard-count">
                                             <strong>
-                                                {member.present}
+                                                {count}
                                             </strong>
 
                                             <span>
-                                                {member.present ===
+                                                {count ===
                                                 1
                                                     ? "day"
                                                     : "days"}
                                             </span>
                                         </div>
                                     </div>
-                                )
-                            )}
-                        </div>
-                    )}
-                </div>
-
-                {/* Absent Leaderboard */}
-
-                <div className="leaderboard-card">
-                    <div className="leaderboard-header">
-                        <div>
-                            <h2>⚠️ Most Absent</h2>
-                            <p>
-                                Top absences this week
-                            </p>
-                        </div>
+                                );
+                            }
+                        )}
                     </div>
-
-                    {loading ? (
-                        <div className="leaderboard-loading">
-                            Loading leaderboard...
-                        </div>
-                    ) : absentLeaderboard.length === 0 ? (
-                        <div className="leaderboard-empty">
-                            No attendance records this week.
-                        </div>
-                    ) : (
-                        <div className="leaderboard-list">
-                            {absentLeaderboard.map(
-                                (member, index) => (
-                                    <div
-                                        className="leaderboard-row"
-                                        key={member.id}
-                                    >
-                                        <div className="leaderboard-rank">
-                                            {index + 1}
-                                        </div>
-
-                                        <div className="leaderboard-member">
-                                            <div className="leaderboard-avatar">
-                                                {member.full_name
-                                                    .charAt(0)
-                                                    .toUpperCase()}
-                                            </div>
-
-                                            <strong>
-                                                {member.full_name}
-                                            </strong>
-                                        </div>
-
-                                        <div className="leaderboard-count">
-                                            <strong>
-                                                {member.absent}
-                                            </strong>
-
-                                            <span>
-                                                {member.absent ===
-                                                1
-                                                    ? "day"
-                                                    : "days"}
-                                            </span>
-                                        </div>
-                                    </div>
-                                )
-                            )}
-                        </div>
-                    )}
-                </div>
+                )}
             </div>
+
+            {/* Today's attendance */}
 
             <div className="dashboard-section">
                 <h2>Today's Attendance</h2>
@@ -459,7 +466,8 @@ function AdminDashboard() {
                     </p>
                 ) : (
                     <p>
-                        {stats.present + stats.absent}{" "}
+                        {stats.present +
+                            stats.absent}{" "}
                         attendance records have been
                         recorded today.
                     </p>
