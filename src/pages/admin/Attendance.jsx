@@ -5,13 +5,14 @@ import "./Attendance.css";
 function getDate(offset = 0) {
     const date = new Date();
     date.setDate(date.getDate() + offset);
-    return date.toLocaleDateString("en-CA");
+
+    return date.toISOString().split("T")[0];
 }
 
 function formatDate(dateString) {
     const date = new Date(`${dateString}T00:00:00`);
 
-    return date.toLocaleDateString("en-IN", {
+    return date.toLocaleDateString(undefined, {
         day: "numeric",
         month: "long",
         year: "numeric",
@@ -19,38 +20,47 @@ function formatDate(dateString) {
 }
 
 function Attendance() {
-    const [selectedDate, setSelectedDate] = useState(getDate());
+    const today = getDate();
+
+    const [selectedDate, setSelectedDate] = useState(today);
     const [members, setMembers] = useState([]);
     const [attendance, setAttendance] = useState([]);
-    const [editingId, setEditingId] = useState(null);
 
     const [loading, setLoading] = useState(true);
     const [savingId, setSavingId] = useState(null);
     const [error, setError] = useState("");
 
-    const today = getDate();
-    const yesterday = getDate(-1);
+    const [editingId, setEditingId] = useState(null);
 
-    // Any past date or today can be edited.
-    // Future dates cannot be selected or edited.
     const canEdit = selectedDate <= today;
     const isPastDate = selectedDate < today;
 
     useEffect(() => {
-        loadAttendance();
+        loadData();
     }, [selectedDate]);
 
-    async function loadAttendance() {
+    async function loadData() {
         setLoading(true);
         setError("");
         setEditingId(null);
 
-        const { data: membersData, error: membersError } =
-            await supabase
+        const [
+            { data: membersData, error: membersError },
+            { data: attendanceData, error: attendanceError },
+        ] = await Promise.all([
+            supabase
                 .from("profiles")
                 .select("id, full_name")
                 .eq("role", "member")
-                .order("full_name");
+                .order("created_at", { ascending: true }),
+
+            supabase
+                .from("attendance")
+                .select(
+                    "id, member_id, attendance_date, status, is_late, early_leave, inattentive"
+                )
+                .eq("attendance_date", selectedDate),
+        ]);
 
         if (membersError) {
             console.error(membersError);
@@ -58,12 +68,6 @@ function Attendance() {
             setLoading(false);
             return;
         }
-
-        const { data: attendanceData, error: attendanceError } =
-            await supabase
-                .from("attendance")
-                .select("*")
-                .eq("attendance_date", selectedDate);
 
         if (attendanceError) {
             console.error(attendanceError);
@@ -77,20 +81,95 @@ function Attendance() {
         setLoading(false);
     }
 
-    function getAttendance(memberId) {
+    function getAttendanceRecord(memberId) {
         return attendance.find(
             (record) => record.member_id === memberId
         );
     }
 
+    function getStatus(memberId) {
+        const record = getAttendanceRecord(memberId);
+
+        if (!record) {
+            if (isPastDate) {
+                return "forgotten";
+            }
+
+            return "not_marked";
+        }
+
+        if (record.inattentive) {
+            return "inattentive";
+        }
+
+        if (record.early_leave) {
+            return "early_leave";
+        }
+
+        if (record.status === "present" && record.is_late) {
+            return "late";
+        }
+
+        if (record.status === "present") {
+            return "present";
+        }
+
+        if (record.status === "absent") {
+            return "absent";
+        }
+
+        return "not_marked";
+    }
+
+    function getStatusLabel(status) {
+        switch (status) {
+            case "present":
+                return "Present";
+
+            case "late":
+                return "Late";
+
+            case "early_leave":
+                return "Early Leave";
+
+            case "inattentive":
+                return "Inattentive";
+
+            case "absent":
+                return "Absent";
+
+            case "forgotten":
+                return "Forgotten";
+
+            case "not_marked":
+                return "Not Marked";
+
+            default:
+                return "Not Marked";
+        }
+    }
+
     async function saveAttendance(
         memberId,
         status,
-        isLate,
-        earlyLeave
+        options = {}
     ) {
+        if (!canEdit) {
+            return;
+        }
+
         setSavingId(memberId);
         setError("");
+
+        const isLate = options.isLate ?? false;
+        const earlyLeave = options.earlyLeave ?? false;
+        const inattentive = options.inattentive ?? false;
+
+        let dbStatus = "absent";
+
+        if (status === "present" || status === "late") {
+            dbStatus = "present";
+        }
 
         const { data, error } = await supabase
             .from("attendance")
@@ -98,15 +177,19 @@ function Attendance() {
                 {
                     member_id: memberId,
                     attendance_date: selectedDate,
-                    status,
+                    status: dbStatus,
                     is_late: isLate,
                     early_leave: earlyLeave,
+                    inattentive: inattentive,
                 },
                 {
-                    onConflict: "member_id,attendance_date",
+                    onConflict:
+                        "member_id,attendance_date",
                 }
             )
-            .select()
+            .select(
+                "id, member_id, attendance_date, status, is_late, early_leave, inattentive"
+            )
             .single();
 
         if (error) {
@@ -117,213 +200,260 @@ function Attendance() {
         }
 
         setAttendance((current) => {
-            const exists = current.some(
+            const existingIndex = current.findIndex(
                 (record) => record.member_id === memberId
             );
 
-            if (exists) {
-                return current.map((record) =>
-                    record.member_id === memberId
-                        ? data
-                        : record
-                );
+            if (existingIndex === -1) {
+                return [...current, data];
             }
 
-            return [...current, data];
+            return current.map((record, index) =>
+                index === existingIndex ? data : record
+            );
         });
 
         setEditingId(null);
         setSavingId(null);
     }
 
-    async function markPresent(memberId) {
-        await saveAttendance(
-            memberId,
-            "present",
-            false,
-            false
-        );
+    function markPresent(memberId) {
+        saveAttendance(memberId, "present", {
+            isLate: false,
+            earlyLeave: false,
+            inattentive: false,
+        });
     }
 
-    async function markAbsent(memberId) {
-        await saveAttendance(
-            memberId,
-            "absent",
-            false,
-            false
-        );
+    function markAbsent(memberId) {
+        saveAttendance(memberId, "absent", {
+            isLate: false,
+            earlyLeave: false,
+            inattentive: false,
+        });
     }
 
-    async function markLate(memberId) {
-        await saveAttendance(
-            memberId,
-            "present",
-            true,
-            false
-        );
+    function markLate(memberId) {
+        saveAttendance(memberId, "late", {
+            isLate: true,
+            earlyLeave: false,
+            inattentive: false,
+        });
     }
 
-    async function markEarlyLeave(memberId, record) {
-        await saveAttendance(
-            memberId,
-            "absent",
-            record?.is_late ?? false,
-            true
-        );
+    function markEarlyLeave(memberId) {
+        saveAttendance(memberId, "early_leave", {
+            isLate: false,
+            earlyLeave: true,
+            inattentive: false,
+        });
     }
 
-    function getStatus(record) {
-        if (!record) {
-            if (isPastDate) {
-                return {
-                    label: "Forgotten",
-                    className: "status-forgotten",
-                };
-            }
+    function markInattentive(memberId) {
+        saveAttendance(memberId, "inattentive", {
+            isLate: false,
+            earlyLeave: false,
+            inattentive: true,
+        });
+    }
 
-            return {
-                label: "Not Marked",
-                className: "status-not-marked",
-            };
+    function renderActions(member) {
+        const memberId = member.id;
+        const status = getStatus(memberId);
+        const saving = savingId === memberId;
+
+        if (!canEdit) {
+            return (
+                <span className="attendance-view-only">
+                    View only
+                </span>
+            );
         }
 
-        if (record.early_leave) {
-            return {
-                label: "Early Leave",
-                className: "status-early-leave",
-            };
+        if (editingId === memberId) {
+            return (
+                <div className="attendance-edit-actions">
+                    <button
+                        type="button"
+                        className="attendance-action present"
+                        onClick={() => markPresent(memberId)}
+                        disabled={saving}
+                    >
+                        Present
+                    </button>
+
+                    <button
+                        type="button"
+                        className="attendance-action absent"
+                        onClick={() => markAbsent(memberId)}
+                        disabled={saving}
+                    >
+                        Absent
+                    </button>
+
+                    <button
+                        type="button"
+                        className="attendance-action late"
+                        onClick={() => markLate(memberId)}
+                        disabled={saving}
+                    >
+                        Late
+                    </button>
+
+                    <button
+                        type="button"
+                        className="attendance-action early-leave"
+                        onClick={() =>
+                            markEarlyLeave(memberId)
+                        }
+                        disabled={saving}
+                    >
+                        Early Leave
+                    </button>
+
+                    <button
+                        type="button"
+                        className="attendance-action inattentive"
+                        onClick={() =>
+                            markInattentive(memberId)
+                        }
+                        disabled={saving}
+                    >
+                        Inattentive
+                    </button>
+
+                    <button
+                        type="button"
+                        className="attendance-action cancel"
+                        onClick={() => setEditingId(null)}
+                        disabled={saving}
+                    >
+                        Cancel
+                    </button>
+                </div>
+            );
         }
 
-        if (record.status === "present" && record.is_late) {
-            return {
-                label: "Late",
-                className: "status-late",
-            };
+        if (status === "not_marked") {
+            return (
+                <div className="attendance-actions">
+                    <button
+                        type="button"
+                        className="attendance-action present"
+                        onClick={() => markPresent(memberId)}
+                        disabled={saving}
+                    >
+                        Present
+                    </button>
+
+                    <button
+                        type="button"
+                        className="attendance-action absent"
+                        onClick={() => markAbsent(memberId)}
+                        disabled={saving}
+                    >
+                        Absent
+                    </button>
+                </div>
+            );
         }
 
-        if (record.status === "present") {
-            return {
-                label: "Present",
-                className: "status-present",
-            };
+        if (status === "forgotten") {
+            return (
+                <div className="attendance-actions">
+                    <button
+                        type="button"
+                        className="attendance-action edit"
+                        onClick={() => setEditingId(memberId)}
+                        disabled={saving}
+                    >
+                        Mark
+                    </button>
+                </div>
+            );
         }
 
-        return {
-            label: "Absent",
-            className: "status-absent",
-        };
-    }
-
-    function renderEditActions(member, record, saving) {
         return (
             <div className="attendance-actions">
                 <button
-                    className="action-button present-button"
-                    onClick={() => markPresent(member.id)}
+                    type="button"
+                    className="attendance-action edit"
+                    onClick={() => setEditingId(memberId)}
                     disabled={saving}
                 >
-                    Present
-                </button>
-
-                <button
-                    className="action-button absent-button"
-                    onClick={() => markAbsent(member.id)}
-                    disabled={saving}
-                >
-                    Absent
-                </button>
-
-                <button
-                    className="action-button late-button"
-                    onClick={() => markLate(member.id)}
-                    disabled={saving}
-                >
-                    Late
-                </button>
-
-                <button
-                    className="action-button early-button"
-                    onClick={() =>
-                        markEarlyLeave(member.id, record)
-                    }
-                    disabled={saving}
-                >
-                    Early Leave
-                </button>
-
-                <button
-                    className="action-button cancel-button"
-                    onClick={() => setEditingId(null)}
-                    disabled={saving}
-                >
-                    Cancel
+                    Edit
                 </button>
             </div>
-        );
-    }
-
-    if (loading) {
-        return (
-            <section className="attendance-page">
-                <div className="attendance-loading">
-                    Loading attendance...
-                </div>
-            </section>
         );
     }
 
     return (
-        <section className="attendance-page">
+        <div className="attendance-page">
             <div className="attendance-header">
                 <div>
                     <h1>Attendance</h1>
-                    <p>Manage attendance records.</p>
+
+                    <p>
+                        Manage attendance for each member.
+                    </p>
                 </div>
 
-                <div className="attendance-date">
+                <div className="attendance-date-selector">
+                    <button
+                        type="button"
+                        className={
+                            selectedDate === today
+                                ? "date-button active"
+                                : "date-button"
+                        }
+                        onClick={() =>
+                            setSelectedDate(today)
+                        }
+                    >
+                        Today
+                    </button>
+
+                    <button
+                        type="button"
+                        className={
+                            selectedDate === getDate(-1)
+                                ? "date-button active"
+                                : "date-button"
+                        }
+                        onClick={() =>
+                            setSelectedDate(getDate(-1))
+                        }
+                    >
+                        Yesterday
+                    </button>
+
+                    <input
+                        className="attendance-date-picker"
+                        type="date"
+                        value={selectedDate}
+                        max={today}
+                        onChange={(e) =>
+                            setSelectedDate(e.target.value)
+                        }
+                    />
+                </div>
+            </div>
+
+            <div className="attendance-date-info">
+                <strong>
                     {formatDate(selectedDate)}
-                </div>
+                </strong>
+
+                {canEdit ? (
+                    <span>
+                        You can edit attendance for this date.
+                    </span>
+                ) : (
+                    <span>
+                        Future attendance cannot be marked.
+                    </span>
+                )}
             </div>
-
-            <div className="attendance-date-selector">
-                <button
-                    className={
-                        selectedDate === today
-                            ? "date-button active"
-                            : "date-button"
-                    }
-                    onClick={() => setSelectedDate(today)}
-                >
-                    Today
-                </button>
-
-                <button
-                    className={
-                        selectedDate === yesterday
-                            ? "date-button active"
-                            : "date-button"
-                    }
-                    onClick={() => setSelectedDate(yesterday)}
-                >
-                    Yesterday
-                </button>
-
-                <input
-                    className="attendance-date-picker"
-                    type="date"
-                    value={selectedDate}
-                    max={today}
-                    onChange={(e) =>
-                        setSelectedDate(e.target.value)
-                    }
-                />
-            </div>
-
-            {canEdit && (
-                <div className="attendance-info">
-                    You can edit attendance for this date.
-                </div>
-            )}
 
             {error && (
                 <div className="attendance-error">
@@ -331,104 +461,59 @@ function Attendance() {
                 </div>
             )}
 
-            <div className="attendance-table-wrapper">
+            <div className="attendance-table">
                 <div className="attendance-table-header">
                     <span>Member</span>
                     <span>Status</span>
                     <span>Actions</span>
                 </div>
 
-                {members.length === 0 ? (
+                {loading ? (
+                    <div className="attendance-loading">
+                        Loading attendance...
+                    </div>
+                ) : members.length === 0 ? (
                     <div className="attendance-empty">
-                        No members found.
+                        No members have been added yet.
                     </div>
                 ) : (
                     members.map((member) => {
-                        const record = getAttendance(member.id);
-                        const status = getStatus(record);
-                        const saving = savingId === member.id;
-                        const editing =
-                            editingId === member.id;
+                        const status = getStatus(member.id);
 
                         return (
                             <div
                                 className="attendance-row"
                                 key={member.id}
                             >
-                                <div className="member-name">
-                                    {member.full_name}
+                                <div className="attendance-member">
+                                    <div className="attendance-avatar">
+                                        {member.full_name
+                                            .charAt(0)
+                                            .toUpperCase()}
+                                    </div>
+
+                                    <strong>
+                                        {member.full_name}
+                                    </strong>
                                 </div>
 
-                                <div>
+                                <div className="attendance-status">
                                     <span
-                                        className={`status-badge ${status.className}`}
+                                        className={`status-badge ${status}`}
                                     >
-                                        <span className="status-dot" />
-                                        {status.label}
+                                        {getStatusLabel(status)}
                                     </span>
                                 </div>
 
-                                <div className="attendance-actions">
-                                    {!record && canEdit ? (
-                                        <>
-                                            <button
-                                                className="action-button present-button"
-                                                onClick={() =>
-                                                    markPresent(
-                                                        member.id
-                                                    )
-                                                }
-                                                disabled={saving}
-                                            >
-                                                Present
-                                            </button>
-
-                                            <button
-                                                className="action-button absent-button"
-                                                onClick={() =>
-                                                    markAbsent(
-                                                        member.id
-                                                    )
-                                                }
-                                                disabled={saving}
-                                            >
-                                                Absent
-                                            </button>
-                                        </>
-                                    ) : record &&
-                                      editing &&
-                                      canEdit ? (
-                                        renderEditActions(
-                                            member,
-                                            record,
-                                            saving
-                                        )
-                                    ) : record && canEdit ? (
-                                        <button
-                                            className="action-button edit-button"
-                                            onClick={() =>
-                                                setEditingId(
-                                                    member.id
-                                                )
-                                            }
-                                            disabled={saving}
-                                        >
-                                            Edit
-                                        </button>
-                                    ) : (
-                                        <span className="locked-label">
-                                            {record
-                                                ? "View only"
-                                                : "No record"}
-                                        </span>
-                                    )}
+                                <div className="attendance-actions-container">
+                                    {renderActions(member)}
                                 </div>
                             </div>
                         );
                     })
                 )}
             </div>
-        </section>
+        </div>
     );
 }
 

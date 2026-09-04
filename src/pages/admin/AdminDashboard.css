@@ -3,6 +3,8 @@
     margin: 0 auto;
 }
 
+/* Header */
+
 .dashboard-header {
     display: flex;
     align-items: center;
@@ -13,6 +15,7 @@
 .dashboard-header h1 {
     margin: 0;
     font-size: 30px;
+    color: #111827;
 }
 
 .dashboard-header p {
@@ -26,7 +29,13 @@
     border-radius: 8px;
     background: #111827;
     color: white;
+    font-weight: 600;
     cursor: pointer;
+    transition: background 0.2s;
+}
+
+.refresh-button:hover:not(:disabled) {
+    background: #1f2937;
 }
 
 .refresh-button:disabled {
@@ -34,9 +43,21 @@
     cursor: not-allowed;
 }
 
+/* Error */
+
+.dashboard-error {
+    margin-bottom: 20px;
+    padding: 14px 16px;
+    border-radius: 8px;
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+/* Statistics */
+
 .stats-grid {
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     gap: 18px;
 }
 
@@ -56,7 +77,139 @@
 
 .stat-value {
     font-size: 32px;
+    color: #111827;
 }
+
+/* Leaderboards */
+
+.leaderboards {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 18px;
+    margin-top: 24px;
+}
+
+.leaderboard-card {
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.leaderboard-header {
+    padding: 22px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.leaderboard-header h2 {
+    margin: 0;
+    font-size: 20px;
+    color: #111827;
+}
+
+.leaderboard-header p {
+    margin: 5px 0 0;
+    color: #6b7280;
+    font-size: 14px;
+}
+
+/* Leaderboard list */
+
+.leaderboard-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.leaderboard-row {
+    display: grid;
+    grid-template-columns: 36px 1fr auto;
+    align-items: center;
+    gap: 12px;
+    min-height: 70px;
+    padding: 12px 22px;
+    border-bottom: 1px solid #f0f1f3;
+}
+
+.leaderboard-row:last-child {
+    border-bottom: none;
+}
+
+/* Rank */
+
+.leaderboard-rank {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: #f3f4f6;
+    color: #374151;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+/* Member */
+
+.leaderboard-member {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+.leaderboard-member strong {
+    overflow: hidden;
+    color: #111827;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.leaderboard-avatar {
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: #e5e7eb;
+    color: #374151;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+/* Count */
+
+.leaderboard-count {
+    display: flex;
+    align-items: baseline;
+    gap: 5px;
+    min-width: 55px;
+    justify-content: flex-end;
+}
+
+.leaderboard-count strong {
+    color: #111827;
+    font-size: 20px;
+}
+
+.leaderboard-count span {
+    color: #6b7280;
+    font-size: 12px;
+}
+
+/* Loading / Empty */
+
+.leaderboard-loading,
+.leaderboard-empty {
+    padding: 30px 22px;
+    text-align: center;
+    color: #6b7280;
+    font-size: 14px;
+}
+
+/* Today's attendance */
 
 .dashboard-section {
     margin-top: 24px;
@@ -68,19 +221,14 @@
 
 .dashboard-section h2 {
     margin-top: 0;
+    color: #111827;
 }
 
 .dashboard-section p {
     color: #6b7280;
 }
 
-.dashboard-error {
-    margin-bottom: 20px;
-    padding: 14px 16px;
-    border-radius: 8px;
-    background: #fee2e2;
-    color: #991b1b;
-}
+/* Old attendance styles */
 
 .attendance-date-selector {
     display: flex;
@@ -135,11 +283,19 @@
     background: #e5e7eb;
 }
 
-@media (max-width: 1100px) {
+/* Tablet */
+
+@media (max-width: 900px) {
     .stats-grid {
         grid-template-columns: repeat(2, 1fr);
     }
+
+    .leaderboards {
+        grid-template-columns: 1fr;
+    }
 }
+
+/* Mobile */
 
 @media (max-width: 600px) {
     .admin-content {
@@ -152,7 +308,19 @@
         flex-direction: column;
     }
 
+    .refresh-button {
+        width: 100%;
+    }
+
     .stats-grid {
         grid-template-columns: 1fr;
+    }
+
+    .leaderboard-row {
+        padding: 12px 16px;
+    }
+
+    .leaderboard-header {
+        padding: 20px 16px;
     }
 }
