@@ -220,11 +220,10 @@
     border-color: #111827;
 }
 
-.modal-actions {
+.member-actions {
     display: flex;
-    justify-content: flex-end;
-    gap: 10px;
-    margin-top: 6px;
+    align-items: center;
+    gap: 8px;
 }
 
 .modal-cancel,
@@ -302,6 +301,21 @@
 .member-tab .pending-count {
     background: #fef3c7;
     color: #92400e;
+}
+
+.delete-button {
+    padding: 8px 12px;
+    border: 1px solid #fecaca;
+    border-radius: 7px;
+    background: #ffffff;
+    color: #b91c1c;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.delete-button:hover {
+    background: #fef2f2;
 }
 
 .pending-table-header,

@@ -3,20 +3,13 @@ import { supabase } from "../../lib/supabase";
 import "./Members.css";
 
 function Members() {
-    const [activeMembers, setActiveMembers] = useState([]);
-    const [pendingMembers, setPendingMembers] = useState([]);
-
+    const [members, setMembers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
-    const [success, setSuccess] = useState("");
 
-    const [activeTab, setActiveTab] = useState("active");
-
-    const [showAddModal, setShowAddModal] = useState(false);
+    const [showModal, setShowModal] = useState(false);
     const [fullName, setFullName] = useState("");
-    const [email, setEmail] = useState("");
     const [saving, setSaving] = useState(false);
-    const [formError, setFormError] = useState("");
 
     useEffect(() => {
         loadMembers();
@@ -26,189 +19,99 @@ function Members() {
         setLoading(true);
         setError("");
 
-        const { data: activeData, error: activeError } =
-            await supabase
-                .from("profiles")
-                .select("id, full_name, created_at")
-                .eq("role", "member")
-                .order("full_name");
+        const { data, error } = await supabase
+            .from("profiles")
+            .select("id, full_name, created_at")
+            .eq("role", "member")
+            .order("created_at", { ascending: true });
 
-        if (activeError) {
-            console.error(activeError);
-            setError("Unable to load active members.");
+        if (error) {
+            console.error(error);
+            setError("Unable to load members.");
             setLoading(false);
             return;
         }
 
-        const { data: pendingData, error: pendingError } =
-            await supabase
-                .from("member_invites")
-                .select("id, full_name, email, created_at")
-                .eq("approved", false)
-                .order("created_at", {
-                    ascending: false,
-                });
-
-        if (pendingError) {
-            console.error(pendingError);
-            setError("Unable to load pending members.");
-            setLoading(false);
-            return;
-        }
-
-        setActiveMembers(activeData ?? []);
-        setPendingMembers(pendingData ?? []);
+        setMembers(data ?? []);
         setLoading(false);
-    }
-
-    function openAddModal() {
-        setFullName("");
-        setEmail("");
-        setFormError("");
-        setShowAddModal(true);
-    }
-
-    function closeAddModal() {
-        if (saving) return;
-
-        setShowAddModal(false);
-        setFormError("");
     }
 
     async function handleAddMember(e) {
         e.preventDefault();
 
-        setFormError("");
-        setSuccess("");
-
         const trimmedName = fullName.trim();
-        const trimmedEmail = email.trim().toLowerCase();
 
         if (!trimmedName) {
-            setFormError("Please enter the member's name.");
-            return;
-        }
-
-        if (!trimmedEmail) {
-            setFormError("Please enter the member's email.");
             return;
         }
 
         setSaving(true);
+        setError("");
 
-        const { error } = await supabase
-            .from("member_invites")
+        const { data, error } = await supabase
+            .from("profiles")
             .insert({
                 full_name: trimmedName,
-                email: trimmedEmail,
-            });
+                role: "member",
+            })
+            .select("id, full_name, created_at")
+            .single();
 
         if (error) {
             console.error(error);
-
-            if (error.code === "23505") {
-                setFormError(
-                    "An invitation for this email already exists."
-                );
-            } else {
-                setFormError(
-                    "Unable to create the member invitation."
-                );
-            }
-
+            setError("Unable to add member.");
             setSaving(false);
             return;
         }
 
-        setSaving(false);
-        setShowAddModal(false);
+        setMembers((current) => [...current, data]);
         setFullName("");
-        setEmail("");
-
-        setSuccess(
-            `${trimmedName} has been added to pending members.`
-        );
-
-        await loadMembers();
+        setShowModal(false);
+        setSaving(false);
     }
 
-    async function approveMember(invite) {
-        setError("");
-        setSuccess("");
-
-        const { error } = await supabase
-            .from("member_invites")
-            .update({ approved: true })
-            .eq("id", invite.id);
-
-        if (error) {
-            console.error(error);
-            setError("Unable to approve member.");
-            return;
-        }
-
-        setSuccess(`${invite.full_name} has been approved.`);
-
-        await loadMembers();
-    }
-
-    async function rejectMember(invite) {
+    async function handleDeleteMember(member) {
         const confirmed = window.confirm(
-            `Reject ${invite.full_name}'s membership request?`
+            `Are you sure you want to delete ${member.full_name}?`
         );
 
-        if (!confirmed) return;
-
-        setError("");
-        setSuccess("");
-
-        const { error } = await supabase
-            .from("member_invites")
-            .delete()
-            .eq("id", invite.id);
-
-        if (error) {
-            console.error(error);
-            setError("Unable to reject member.");
+        if (!confirmed) {
             return;
         }
 
-        setSuccess(`${invite.full_name}'s request was rejected.`);
+        setError("");
 
-        await loadMembers();
-    }
+        const { error } = await supabase
+            .from("profiles")
+            .delete()
+            .eq("id", member.id);
 
-    if (loading) {
-        return (
-            <section className="members-page">
-                <div className="members-loading">
-                    Loading members...
-                </div>
-            </section>
+        if (error) {
+            console.error(error);
+            setError("Unable to delete member.");
+            return;
+        }
+
+        setMembers((current) =>
+            current.filter((item) => item.id !== member.id)
         );
     }
 
     return (
-        <section className="members-page">
+        <div className="members-page">
             <div className="members-header">
                 <div>
                     <h1>Members</h1>
-                    <p>Manage attendance portal members.</p>
+                    <p>Manage the members in your attendance system.</p>
                 </div>
 
                 <button
                     className="add-member-button"
-                    onClick={openAddModal}
+                    onClick={() => setShowModal(true)}
                 >
                     + Add Member
                 </button>
             </div>
-
-            {success && (
-                <div className="members-success">
-                    {success}
-                </div>
-            )}
 
             {error && (
                 <div className="members-error">
@@ -216,246 +119,117 @@ function Members() {
                 </div>
             )}
 
-            <div className="members-tabs">
-                <button
-                    className={
-                        activeTab === "active"
-                            ? "member-tab active"
-                            : "member-tab"
-                    }
-                    onClick={() => setActiveTab("active")}
-                >
-                    Active Members
-                    <span>{activeMembers.length}</span>
-                </button>
+            <div className="members-table">
+                <div className="members-table-header">
+                    <span>Member</span>
+                    <span>Joined</span>
+                    <span>Actions</span>
+                </div>
 
-                <button
-                    className={
-                        activeTab === "pending"
-                            ? "member-tab active"
-                            : "member-tab"
-                    }
-                    onClick={() => setActiveTab("pending")}
-                >
-                    Pending
-                    {pendingMembers.length > 0 && (
-                        <span className="pending-count">
-                            {pendingMembers.length}
-                        </span>
-                    )}
-                </button>
-            </div>
-
-            {activeTab === "active" ? (
-                <div className="members-table">
-                    <div className="members-table-header">
-                        <span>Member</span>
-                        <span>Joined</span>
-                        <span>Actions</span>
+                {loading ? (
+                    <div className="members-loading">
+                        Loading members...
                     </div>
-
-                    {activeMembers.length === 0 ? (
-                        <div className="members-empty">
-                            No active members found.
-                        </div>
-                    ) : (
-                        activeMembers.map((member) => (
-                            <div
-                                className="member-row"
-                                key={member.id}
-                            >
-                                <div className="member-info">
-                                    <div className="member-avatar">
-                                        {member.full_name
-                                            ?.charAt(0)
-                                            .toUpperCase()}
-                                    </div>
-
-                                    <div>
-                                        <strong>
-                                            {member.full_name}
-                                        </strong>
-                                        <small>Active Member</small>
-                                    </div>
-                                </div>
-
-                                <div className="member-joined">
-                                    {new Date(
-                                        member.created_at
-                                    ).toLocaleDateString(
-                                        "en-IN",
-                                        {
-                                            day: "numeric",
-                                            month: "short",
-                                            year: "numeric",
-                                        }
-                                    )}
+                ) : members.length === 0 ? (
+                    <div className="members-empty">
+                        No members have been added yet.
+                    </div>
+                ) : (
+                    members.map((member) => (
+                        <div
+                            className="member-row"
+                            key={member.id}
+                        >
+                            <div className="member-info">
+                                <div className="member-avatar">
+                                    {member.full_name
+                                        .charAt(0)
+                                        .toUpperCase()}
                                 </div>
 
                                 <div>
-                                    <button className="view-button">
-                                        View
-                                    </button>
+                                    <strong>{member.full_name}</strong>
                                 </div>
                             </div>
-                        ))
-                    )}
-                </div>
-            ) : (
-                <div className="members-table">
-                    <div className="pending-table-header">
-                        <span>Member</span>
-                        <span>Email</span>
-                        <span>Requested</span>
-                        <span>Actions</span>
-                    </div>
 
-                    {pendingMembers.length === 0 ? (
-                        <div className="members-empty">
-                            No pending members.
+                            <span className="member-joined">
+                                {new Date(
+                                    member.created_at
+                                ).toLocaleDateString()}
+                            </span>
+
+                            <div className="member-actions">
+                                <button
+                                    className="view-button"
+                                    type="button"
+                                >
+                                    View
+                                </button>
+
+                                <button
+                                    className="delete-button"
+                                    type="button"
+                                    onClick={() =>
+                                        handleDeleteMember(member)
+                                    }
+                                >
+                                    Delete
+                                </button>
+                            </div>
                         </div>
-                    ) : (
-                        pendingMembers.map((member) => (
-                            <div
-                                className="pending-row"
-                                key={member.id}
-                            >
-                                <div className="member-info">
-                                    <div className="member-avatar">
-                                        {member.full_name
-                                            ?.charAt(0)
-                                            .toUpperCase()}
-                                    </div>
+                    ))
+                )}
+            </div>
 
-                                    <div>
-                                        <strong>
-                                            {member.full_name}
-                                        </strong>
-                                        <small>
-                                            Pending approval
-                                        </small>
-                                    </div>
-                                </div>
-
-                                <div className="pending-email">
-                                    {member.email}
-                                </div>
-
-                                <div className="member-joined">
-                                    {new Date(
-                                        member.created_at
-                                    ).toLocaleDateString(
-                                        "en-IN",
-                                        {
-                                            day: "numeric",
-                                            month: "short",
-                                            year: "numeric",
-                                        }
-                                    )}
-                                </div>
-
-                                <div className="pending-actions">
-                                    <button
-                                        className="approve-button"
-                                        onClick={() =>
-                                            approveMember(
-                                                member
-                                            )
-                                        }
-                                    >
-                                        Approve
-                                    </button>
-
-                                    <button
-                                        className="reject-button"
-                                        onClick={() =>
-                                            rejectMember(
-                                                member
-                                            )
-                                        }
-                                    >
-                                        Reject
-                                    </button>
-                                </div>
-                            </div>
-                        ))
-                    )}
-                </div>
-            )}
-
-            {showAddModal && (
+            {showModal && (
                 <div
                     className="modal-overlay"
-                    onMouseDown={closeAddModal}
+                    onClick={() => setShowModal(false)}
                 >
                     <div
                         className="member-modal"
-                        onMouseDown={(e) =>
-                            e.stopPropagation()
-                        }
+                        onClick={(e) => e.stopPropagation()}
                     >
                         <div className="modal-header">
                             <div>
                                 <h2>Add Member</h2>
-                                <p>
-                                    Add a member for approval.
-                                </p>
+                                <p>Add a new member to the system.</p>
                             </div>
 
                             <button
                                 className="modal-close"
-                                onClick={closeAddModal}
-                                disabled={saving}
+                                type="button"
+                                onClick={() =>
+                                    setShowModal(false)
+                                }
                             >
                                 ×
                             </button>
                         </div>
 
-                        <form
-                            className="member-form"
-                            onSubmit={handleAddMember}
-                        >
-                            <label>
+                        <form onSubmit={handleAddMember}>
+                            <label className="modal-field">
                                 Full Name
                                 <input
                                     type="text"
                                     value={fullName}
                                     onChange={(e) =>
-                                        setFullName(
-                                            e.target.value
-                                        )
+                                        setFullName(e.target.value)
                                     }
-                                    placeholder="Enter full name"
+                                    placeholder="Enter member name"
+                                    autoFocus
                                     disabled={saving}
+                                    required
                                 />
                             </label>
-
-                            <label>
-                                Email
-                                <input
-                                    type="email"
-                                    value={email}
-                                    onChange={(e) =>
-                                        setEmail(
-                                            e.target.value
-                                        )
-                                    }
-                                    placeholder="Enter email address"
-                                    disabled={saving}
-                                />
-                            </label>
-
-                            {formError && (
-                                <div className="members-error">
-                                    {formError}
-                                </div>
-                            )}
 
                             <div className="modal-actions">
                                 <button
                                     type="button"
                                     className="modal-cancel"
-                                    onClick={closeAddModal}
+                                    onClick={() =>
+                                        setShowModal(false)
+                                    }
                                     disabled={saving}
                                 >
                                     Cancel
@@ -463,7 +237,7 @@ function Members() {
 
                                 <button
                                     type="submit"
-                                    className="modal-submit"
+                                    className="modal-save"
                                     disabled={saving}
                                 >
                                     {saving
@@ -475,7 +249,7 @@ function Members() {
                     </div>
                 </div>
             )}
-        </section>
+        </div>
     );
 }
 
