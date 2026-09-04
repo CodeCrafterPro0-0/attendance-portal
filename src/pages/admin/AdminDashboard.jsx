@@ -31,11 +31,16 @@ function AdminDashboard() {
     });
 
     const [leaderboard, setLeaderboard] = useState([]);
-    const [leaderboardMode, setLeaderboardMode] =
-        useState("present");
+
+    const [todayMembers, setTodayMembers] = useState([]);
+
+    const [selectedStat, setSelectedStat] = useState(null);
 
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
+
+    const [leaderboardMode, setLeaderboardMode] =
+        useState("present");
 
     useEffect(() => {
         loadDashboardStats();
@@ -48,17 +53,19 @@ function AdminDashboard() {
         const today = getDate();
         const weekStart = getWeekStart();
 
-        // Total members
+        // Get members
         const {
-            count: totalMembers,
+            data: members,
             error: membersError,
         } = await supabase
             .from("profiles")
-            .select("*", {
-                count: "exact",
-                head: true,
-            })
-            .eq("role", "member");
+            .select(
+                "id, full_name, created_at"
+            )
+            .eq("role", "member")
+            .order("full_name", {
+                ascending: true,
+            });
 
         if (membersError) {
             console.error(membersError);
@@ -76,20 +83,21 @@ function AdminDashboard() {
         } = await supabase
             .from("attendance")
             .select(
-                "status, is_late, early_leave, inattentive"
+                "member_id, status, is_late, early_leave, inattentive"
             )
-            .eq("attendance_date", today);
+            .eq("attendance_date", today)
+            .not("member_id", "is", null);
 
         if (todayAttendanceError) {
             console.error(todayAttendanceError);
             setError(
-                "Unable to load attendance statistics."
+                "Unable to load today's attendance."
             );
             setLoading(false);
             return;
         }
 
-        // This week's attendance
+        // Weekly attendance
         const {
             data: weeklyAttendance,
             error: weeklyAttendanceError,
@@ -98,8 +106,14 @@ function AdminDashboard() {
             .select(
                 "member_id, attendance_date, status, is_late, early_leave, inattentive"
             )
-            .gte("attendance_date", weekStart)
-            .lte("attendance_date", today)
+            .gte(
+                "attendance_date",
+                weekStart
+            )
+            .lte(
+                "attendance_date",
+                today
+            )
             .not("member_id", "is", null);
 
         if (weeklyAttendanceError) {
@@ -111,61 +125,101 @@ function AdminDashboard() {
             return;
         }
 
-        // Today's statistics
+        /*
+         * Map member IDs to names
+         */
+        const memberMap = {};
 
-        const present = todayAttendance.filter(
-            (record) =>
-                record.status === "present"
-        ).length;
+        members.forEach((member) => {
+            memberMap[member.id] = member;
+        });
 
-        const late = todayAttendance.filter(
-            (record) =>
+        /*
+         * Today's people
+         */
+
+        const todayPeople = {
+            total: members,
+            present: [],
+            late: [],
+            earlyLeave: [],
+            inattentive: [],
+            absent: [],
+        };
+
+        todayAttendance.forEach((record) => {
+            const member =
+                memberMap[record.member_id];
+
+            if (!member) {
+                return;
+            }
+
+            if (
                 record.status === "present" &&
                 record.is_late
-        ).length;
+            ) {
+                todayPeople.late.push(member);
+                return;
+            }
 
-        const earlyLeave = todayAttendance.filter(
-            (record) =>
+            if (
+                record.status === "present"
+            ) {
+                todayPeople.present.push(member);
+                return;
+            }
+
+            if (
                 record.status === "absent" &&
                 record.early_leave
-        ).length;
+            ) {
+                todayPeople.earlyLeave.push(
+                    member
+                );
+                return;
+            }
 
-        const inattentive = todayAttendance.filter(
-            (record) =>
+            if (
                 record.status === "absent" &&
                 record.inattentive
-        ).length;
+            ) {
+                todayPeople.inattentive.push(
+                    member
+                );
+                return;
+            }
 
-        const absent = todayAttendance.filter(
-            (record) =>
-                record.status === "absent" &&
-                !record.early_leave &&
-                !record.inattentive
-        ).length;
+            if (
+                record.status === "absent"
+            ) {
+                todayPeople.absent.push(member);
+            }
+        });
 
-        // Get all members
+        setTodayMembers(todayPeople);
 
-        const {
-            data: members,
-            error: leaderboardMembersError,
-        } = await supabase
-            .from("profiles")
-            .select("id, full_name")
-            .eq("role", "member")
-            .order("full_name", {
-                ascending: true,
-            });
+        /*
+         * Today's statistics
+         *
+         * Present = on-time present only.
+         * Late gets its own category.
+         */
 
-        if (leaderboardMembersError) {
-            console.error(
-                leaderboardMembersError
-            );
-            setError("Unable to load leaderboard.");
-            setLoading(false);
-            return;
-        }
+        setStats({
+            totalMembers: members.length,
+            present: todayPeople.present.length,
+            late: todayPeople.late.length,
+            earlyLeave:
+                todayPeople.earlyLeave.length,
+            inattentive:
+                todayPeople.inattentive.length,
+            absent: todayPeople.absent.length,
+        });
 
-        // Create stats for every member
+        /*
+         * Weekly leaderboard
+         */
 
         const memberStats = {};
 
@@ -178,8 +232,6 @@ function AdminDashboard() {
             };
         });
 
-        // Calculate weekly attendance
-
         weeklyAttendance.forEach((record) => {
             const member =
                 memberStats[record.member_id];
@@ -189,54 +241,131 @@ function AdminDashboard() {
             }
 
             // Present + Late = attended
-            if (record.status === "present") {
+            if (
+                record.status === "present"
+            ) {
                 member.present += 1;
             }
 
-            // Absent + Early Leave + Inattentive = absent
-            if (record.status === "absent") {
+            // Absent + Early Leave + Inattentive
+            if (
+                record.status === "absent"
+            ) {
                 member.absent += 1;
             }
         });
 
-        const allMembers =
-            Object.values(memberStats);
-
-        setLeaderboard(allMembers);
-
-        setStats({
-            totalMembers: totalMembers ?? 0,
-            present,
-            late,
-            earlyLeave,
-            inattentive,
-            absent,
-        });
+        setLeaderboard(
+            Object.values(memberStats)
+        );
 
         setLoading(false);
     }
 
-    const sortedLeaderboard = [...leaderboard].sort(
-        (a, b) => {
-            if (leaderboardMode === "present") {
-                if (b.present !== a.present) {
-                    return b.present - a.present;
-                }
+    function getSelectedPeople() {
+        if (!selectedStat) {
+            return [];
+        }
 
-                return a.full_name.localeCompare(
-                    b.full_name
+        return todayMembers[selectedStat] ?? [];
+    }
+
+    function getSelectedTitle() {
+        switch (selectedStat) {
+            case "total":
+                return "All Members";
+
+            case "present":
+                return "Present Today";
+
+            case "late":
+                return "Late Today";
+
+            case "earlyLeave":
+                return "Early Leave Today";
+
+            case "inattentive":
+                return "Inattentive Today";
+
+            case "absent":
+                return "Absent Today";
+
+            default:
+                return "";
+        }
+    }
+
+    const sortedLeaderboard = [
+        ...leaderboard,
+    ].sort((a, b) => {
+        if (
+            leaderboardMode ===
+            "present"
+        ) {
+            if (
+                b.present !==
+                a.present
+            ) {
+                return (
+                    b.present -
+                    a.present
                 );
-            }
-
-            if (b.absent !== a.absent) {
-                return b.absent - a.absent;
             }
 
             return a.full_name.localeCompare(
                 b.full_name
             );
         }
-    );
+
+        if (
+            b.absent !==
+            a.absent
+        ) {
+            return (
+                b.absent -
+                a.absent
+            );
+        }
+
+        return a.full_name.localeCompare(
+            b.full_name
+        );
+    });
+
+    function renderStatCard(
+        label,
+        value,
+        statKey
+    ) {
+        return (
+            <button
+                type="button"
+                className="stat-card"
+                onClick={() =>
+                    setSelectedStat(
+                        statKey
+                    )
+                }
+                disabled={loading}
+            >
+                <span className="stat-label">
+                    {label}
+                </span>
+
+                <strong className="stat-value">
+                    {loading
+                        ? "—"
+                        : value}
+                </strong>
+
+                {!loading && (
+                    <span className="stat-card-hint">
+                        Click to view
+                    </span>
+                )}
+            </button>
+        );
+    }
 
     return (
         <section className="dashboard">
@@ -245,13 +374,16 @@ function AdminDashboard() {
                     <h1>Dashboard</h1>
 
                     <p>
-                        Overview of today's attendance.
+                        Overview of today's
+                        attendance.
                     </p>
                 </div>
 
                 <button
                     className="refresh-button"
-                    onClick={loadDashboardStats}
+                    onClick={
+                        loadDashboardStats
+                    }
                     disabled={loading}
                 >
                     {loading
@@ -269,89 +401,55 @@ function AdminDashboard() {
             {/* Statistics */}
 
             <div className="stats-grid">
-                <div className="stat-card">
-                    <span className="stat-label">
-                        Total Members
-                    </span>
+                {renderStatCard(
+                    "Total Members",
+                    stats.totalMembers,
+                    "total"
+                )}
 
-                    <strong className="stat-value">
-                        {loading
-                            ? "—"
-                            : stats.totalMembers}
-                    </strong>
-                </div>
+                {renderStatCard(
+                    "Present Today",
+                    stats.present,
+                    "present"
+                )}
 
-                <div className="stat-card">
-                    <span className="stat-label">
-                        Present Today
-                    </span>
+                {renderStatCard(
+                    "Late Today",
+                    stats.late,
+                    "late"
+                )}
 
-                    <strong className="stat-value">
-                        {loading
-                            ? "—"
-                            : stats.present}
-                    </strong>
-                </div>
+                {renderStatCard(
+                    "Early Leave",
+                    stats.earlyLeave,
+                    "earlyLeave"
+                )}
 
-                <div className="stat-card">
-                    <span className="stat-label">
-                        Late Today
-                    </span>
+                {renderStatCard(
+                    "Inattentive Today",
+                    stats.inattentive,
+                    "inattentive"
+                )}
 
-                    <strong className="stat-value">
-                        {loading
-                            ? "—"
-                            : stats.late}
-                    </strong>
-                </div>
-
-                <div className="stat-card">
-                    <span className="stat-label">
-                        Early Leave
-                    </span>
-
-                    <strong className="stat-value">
-                        {loading
-                            ? "—"
-                            : stats.earlyLeave}
-                    </strong>
-                </div>
-
-                <div className="stat-card">
-                    <span className="stat-label">
-                        Inattentive Today
-                    </span>
-
-                    <strong className="stat-value">
-                        {loading
-                            ? "—"
-                            : stats.inattentive}
-                    </strong>
-                </div>
-
-                <div className="stat-card">
-                    <span className="stat-label">
-                        Absent Today
-                    </span>
-
-                    <strong className="stat-value">
-                        {loading
-                            ? "—"
-                            : stats.absent}
-                    </strong>
-                </div>
+                {renderStatCard(
+                    "Absent Today",
+                    stats.absent,
+                    "absent"
+                )}
             </div>
 
-            {/* Leaderboard */}
+            {/* Weekly Leaderboard */}
 
             <div className="leaderboard-card">
                 <div className="leaderboard-header">
                     <div>
-                        <h2>Weekly Leaderboard</h2>
+                        <h2>
+                            Weekly Leaderboard
+                        </h2>
 
                         <p>
-                            Attendance performance this
-                            week.
+                            Attendance performance
+                            this week.
                         </p>
                     </div>
 
@@ -396,14 +494,19 @@ function AdminDashboard() {
                     <div className="leaderboard-loading">
                         Loading leaderboard...
                     </div>
-                ) : sortedLeaderboard.length === 0 ? (
+                ) : sortedLeaderboard.length ===
+                  0 ? (
                     <div className="leaderboard-empty">
-                        No members have been added yet.
+                        No members have been
+                        added yet.
                     </div>
                 ) : (
                     <div className="leaderboard-list">
                         {sortedLeaderboard.map(
-                            (member, index) => {
+                            (
+                                member,
+                                index
+                            ) => {
                                 const count =
                                     leaderboardMode ===
                                     "present"
@@ -413,10 +516,13 @@ function AdminDashboard() {
                                 return (
                                     <div
                                         className="leaderboard-row"
-                                        key={member.id}
+                                        key={
+                                            member.id
+                                        }
                                     >
                                         <div className="leaderboard-rank">
-                                            {index + 1}
+                                            {index +
+                                                1}
                                         </div>
 
                                         <div className="leaderboard-member">
@@ -437,7 +543,9 @@ function AdminDashboard() {
 
                                         <div className="leaderboard-count">
                                             <strong>
-                                                {count}
+                                                {
+                                                    count
+                                                }
                                             </strong>
 
                                             <span>
@@ -455,10 +563,12 @@ function AdminDashboard() {
                 )}
             </div>
 
-            {/* Today's attendance */}
+            {/* Today's Attendance */}
 
             <div className="dashboard-section">
-                <h2>Today's Attendance</h2>
+                <h2>
+                    Today's Attendance
+                </h2>
 
                 {loading ? (
                     <p>
@@ -466,15 +576,118 @@ function AdminDashboard() {
                     </p>
                 ) : (
                     <p>
-                        {stats.present +
-                            stats.absent}{" "}
-                        attendance records have been
-                        recorded today.
+                        {todayAttendanceMessage(
+                            stats
+                        )}
                     </p>
                 )}
             </div>
+
+            {/* Member List Modal */}
+
+            {selectedStat && (
+                <div
+                    className="stat-modal-overlay"
+                    onMouseDown={(event) => {
+                        if (
+                            event.target ===
+                            event.currentTarget
+                        ) {
+                            setSelectedStat(
+                                null
+                            );
+                        }
+                    }}
+                >
+                    <div className="stat-modal">
+                        <div className="stat-modal-header">
+                            <div>
+                                <h2>
+                                    {getSelectedTitle()}
+                                </h2>
+
+                                <p>
+                                    {getSelectedPeople()
+                                        .length}{" "}
+                                    {getSelectedPeople()
+                                        .length ===
+                                    1
+                                        ? "member"
+                                        : "members"}
+                                </p>
+                            </div>
+
+                            <button
+                                type="button"
+                                className="stat-modal-close"
+                                onClick={() =>
+                                    setSelectedStat(
+                                        null
+                                    )
+                                }
+                                aria-label="Close"
+                            >
+                                ×
+                            </button>
+                        </div>
+
+                        <div className="stat-member-list">
+                            {getSelectedPeople()
+                                .length ===
+                            0 ? (
+                                <div className="stat-member-empty">
+                                    Nobody is in this
+                                    category today.
+                                </div>
+                            ) : (
+                                getSelectedPeople().map(
+                                    (member) => (
+                                        <div
+                                            className="stat-member-row"
+                                            key={
+                                                member.id
+                                            }
+                                        >
+                                            <div className="stat-member-avatar">
+                                                {member.full_name
+                                                    .charAt(
+                                                        0
+                                                    )
+                                                    .toUpperCase()}
+                                            </div>
+
+                                            <strong>
+                                                {
+                                                    member.full_name
+                                                }
+                                            </strong>
+                                        </div>
+                                    )
+                                )
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </section>
     );
+}
+
+function todayAttendanceMessage(
+    stats
+) {
+    const total =
+        stats.present +
+        stats.late +
+        stats.earlyLeave +
+        stats.inattentive +
+        stats.absent;
+
+    return `${total} attendance ${
+        total === 1
+            ? "record"
+            : "records"
+    } have been recorded today.`;
 }
 
 export default AdminDashboard;
