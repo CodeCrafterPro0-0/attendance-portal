@@ -1,0 +1,280 @@
+.member-details-page {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+/* Back button */
+
+.back-button {
+    margin-bottom: 20px;
+    padding: 9px 0;
+    border: 0;
+    background: transparent;
+    color: #374151;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.back-button:hover {
+    color: #111827;
+}
+
+/* Profile */
+
+.member-profile-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    padding: 26px;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+}
+
+.member-profile-main {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.member-profile-avatar {
+    width: 64px;
+    height: 64px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: #e5e7eb;
+    color: #374151;
+    font-size: 24px;
+    font-weight: 700;
+}
+
+.member-profile-main h1 {
+    margin: 0;
+    color: #111827;
+    font-size: 28px;
+}
+
+.member-profile-main p {
+    margin: 6px 0 0;
+    color: #6b7280;
+}
+
+/* Streak */
+
+.current-streak {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 18px;
+    border: 1px solid #fde68a;
+    border-radius: 10px;
+    background: #fffbeb;
+}
+
+.current-streak > span {
+    font-size: 26px;
+}
+
+.current-streak div {
+    display: flex;
+    flex-direction: column;
+}
+
+.current-streak strong {
+    color: #92400e;
+    font-size: 22px;
+}
+
+.current-streak small {
+    color: #92400e;
+    font-size: 12px;
+}
+
+/* Statistics */
+
+.member-stat-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 16px;
+    margin-top: 20px;
+}
+
+.member-stat-card {
+    padding: 20px;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+}
+
+.member-stat-card span {
+    display: block;
+    margin-bottom: 10px;
+    color: #6b7280;
+    font-size: 13px;
+}
+
+.member-stat-card strong {
+    color: #111827;
+    font-size: 26px;
+}
+
+/* History */
+
+.member-history-card {
+    margin-top: 24px;
+    overflow: hidden;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+}
+
+.member-history-header {
+    padding: 22px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.member-history-header h2 {
+    margin: 0;
+    color: #111827;
+    font-size: 20px;
+}
+
+.member-history-header p {
+    margin: 5px 0 0;
+    color: #6b7280;
+    font-size: 14px;
+}
+
+.member-history-table-header,
+.member-history-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: center;
+    gap: 20px;
+    padding: 16px 22px;
+}
+
+.member-history-table-header {
+    background: #f9fafb;
+    color: #6b7280;
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.member-history-row {
+    border-top: 1px solid #f0f1f3;
+}
+
+.history-date {
+    color: #374151;
+    font-size: 14px;
+}
+
+.history-status {
+    width: fit-content;
+    padding: 6px 10px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.history-status.present {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.history-status.late {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.history-status.absent {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.history-status.early_leave {
+    background: #ffedd5;
+    color: #9a3412;
+}
+
+.history-status.inattentive {
+    background: #f3f4f6;
+    color: #374151;
+}
+
+/* Loading / error */
+
+.member-details-loading {
+    padding: 50px;
+    text-align: center;
+    color: #6b7280;
+}
+
+.member-details-error {
+    padding: 16px;
+    border-radius: 8px;
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+/* Tablet */
+
+@media (max-width: 1000px) {
+    .member-stat-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+/* Mobile */
+
+@media (max-width: 700px) {
+    .member-profile-card {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .current-streak {
+        width: 100%;
+    }
+
+    .member-stat-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 480px) {
+    .member-profile-card {
+        padding: 20px;
+    }
+
+    .member-profile-main h1 {
+        font-size: 23px;
+    }
+
+    .member-profile-avatar {
+        width: 52px;
+        height: 52px;
+        font-size: 20px;
+    }
+
+    .member-stat-grid {
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+    }
+
+    .member-stat-card {
+        padding: 16px;
+    }
+
+    .member-history-table-header,
+    .member-history-row {
+        padding: 14px 16px;
+    }
+}

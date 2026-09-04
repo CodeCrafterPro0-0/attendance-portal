@@ -3,8 +3,6 @@
     margin: 0 auto;
 }
 
-/* Header */
-
 .members-header {
     display: flex;
     align-items: flex-end;
@@ -39,8 +37,6 @@
     background: #1f2937;
 }
 
-/* Error */
-
 .members-error {
     margin-bottom: 20px;
     padding: 14px 16px;
@@ -49,8 +45,6 @@
     color: #991b1b;
     font-size: 14px;
 }
-
-/* Members table */
 
 .members-table {
     overflow: hidden;
@@ -62,7 +56,7 @@
 .members-table-header,
 .member-row {
     display: grid;
-    grid-template-columns: 1.5fr 1fr 0.7fr;
+    grid-template-columns: 1.5fr 1fr 1fr 0.7fr;
     align-items: center;
     gap: 20px;
     padding: 18px 22px;
@@ -93,6 +87,19 @@
     gap: 12px;
 }
 
+.member-details-link {
+    width: 100%;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+}
+
+.member-details-link:hover strong {
+    text-decoration: underline;
+}
+
 .member-avatar {
     width: 40px;
     height: 40px;
@@ -115,14 +122,22 @@
     font-size: 14px;
 }
 
+.member-streak {
+    color: #374151;
+    font-size: 14px;
+}
+
+.member-streak strong {
+    color: #111827;
+    font-size: 16px;
+}
+
 .member-actions {
     display: flex;
     align-items: center;
     justify-content: flex-start;
     gap: 8px;
 }
-
-/* Delete */
 
 .delete-button {
     padding: 8px 13px;
@@ -140,8 +155,6 @@
     background: #fef2f2;
 }
 
-/* Loading / empty */
-
 .members-loading,
 .members-empty {
     padding: 40px;
@@ -155,13 +168,10 @@
     position: fixed;
     inset: 0;
     z-index: 1000;
-
     display: flex;
     align-items: center;
     justify-content: center;
-
     padding: 20px;
-
     background: rgba(17, 24, 39, 0.55);
 }
 
@@ -169,15 +179,11 @@
     width: 100%;
     max-width: 500px;
     padding: 30px;
-
     background: #ffffff;
     border: 1px solid #e5e7eb;
     border-radius: 14px;
-
     box-shadow: 0 20px 50px rgba(0, 0, 0, 0.18);
 }
-
-/* Modal header */
 
 .modal-header {
     display: flex;
@@ -203,15 +209,12 @@
     width: 32px;
     height: 32px;
     padding: 0;
-
     border: 0;
     border-radius: 6px;
     background: transparent;
-
     color: #6b7280;
     font-size: 28px;
     line-height: 1;
-
     cursor: pointer;
 }
 
@@ -237,7 +240,6 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
-
     color: #374151;
     font-size: 14px;
     font-weight: 600;
@@ -246,14 +248,11 @@
 .member-form input {
     width: 100%;
     padding: 12px 14px;
-
     border: 1px solid #d1d5db;
     border-radius: 8px;
-
     outline: none;
     background: #ffffff;
     color: #111827;
-
     transition:
         border-color 0.2s,
         box-shadow 0.2s;
@@ -285,9 +284,7 @@
 .modal-submit {
     min-width: 100px;
     padding: 10px 16px;
-
     border-radius: 8px;
-
     font-weight: 600;
     cursor: pointer;
 }
@@ -320,16 +317,7 @@
 
 /* Mobile */
 
-@media (max-width: 700px) {
-    .members-header {
-        align-items: flex-start;
-        flex-direction: column;
-    }
-
-    .add-member-button {
-        width: 100%;
-    }
-
+@media (max-width: 850px) {
     .members-table-header {
         display: none;
     }
@@ -348,13 +336,29 @@
         display: none;
     }
 
+    .member-streak {
+        grid-column: 1;
+        grid-row: 2;
+    }
+
     .member-actions {
         grid-column: 2;
-        grid-row: 1;
+        grid-row: 1 / span 2;
     }
 
     .delete-button {
         padding: 8px 11px;
+    }
+}
+
+@media (max-width: 700px) {
+    .members-header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .add-member-button {
+        width: 100%;
     }
 }
 

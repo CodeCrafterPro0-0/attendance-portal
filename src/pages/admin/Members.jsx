@@ -1,9 +1,20 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabase";
 import "./Members.css";
 
+function getDate(offset = 0) {
+    const date = new Date();
+    date.setDate(date.getDate() + offset);
+
+    return date.toISOString().split("T")[0];
+}
+
 function Members() {
+    const navigate = useNavigate();
+
     const [members, setMembers] = useState([]);
+    const [streaks, setStreaks] = useState({});
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
 
@@ -19,21 +30,120 @@ function Members() {
         setLoading(true);
         setError("");
 
-        const { data, error } = await supabase
+        const {
+            data: membersData,
+            error: membersError,
+        } = await supabase
             .from("profiles")
             .select("id, full_name, created_at")
             .eq("role", "member")
-            .order("created_at", { ascending: true });
+            .order("full_name", { ascending: true });
 
-        if (error) {
-            console.error(error);
+        if (membersError) {
+            console.error(membersError);
             setError("Unable to load members.");
             setLoading(false);
             return;
         }
 
-        setMembers(data ?? []);
+        const membersList = membersData ?? [];
+
+        setMembers(membersList);
+
+        if (membersList.length === 0) {
+            setStreaks({});
+            setLoading(false);
+            return;
+        }
+
+        const {
+            data: attendanceData,
+            error: attendanceError,
+        } = await supabase
+            .from("attendance")
+            .select(
+                "member_id, attendance_date, status"
+            )
+            .in(
+                "member_id",
+                membersList.map((member) => member.id)
+            )
+            .order("attendance_date", {
+                ascending: false,
+            });
+
+        if (attendanceError) {
+            console.error(attendanceError);
+            setError("Unable to load member streaks.");
+            setLoading(false);
+            return;
+        }
+
+        const calculatedStreaks = {};
+
+        membersList.forEach((member) => {
+            calculatedStreaks[member.id] =
+                calculateCurrentStreak(
+                    attendanceData ?? [],
+                    member.id
+                );
+        });
+
+        setStreaks(calculatedStreaks);
         setLoading(false);
+    }
+
+    function calculateCurrentStreak(records, memberId) {
+        const memberRecords = records
+            .filter(
+                (record) =>
+                    record.member_id === memberId &&
+                    record.status === "present"
+            )
+            .sort((a, b) =>
+                b.attendance_date.localeCompare(
+                    a.attendance_date
+                )
+            );
+
+        if (memberRecords.length === 0) {
+            return 0;
+        }
+
+        const attendanceDates = new Set(
+            memberRecords.map(
+                (record) => record.attendance_date
+            )
+        );
+
+        let streak = 0;
+        let currentDate = new Date();
+
+        // If today hasn't been marked yet, start from yesterday.
+        const today = getDate();
+
+        if (!attendanceDates.has(today)) {
+            currentDate.setDate(
+                currentDate.getDate() - 1
+            );
+        }
+
+        while (true) {
+            const dateString =
+                currentDate.toISOString().split("T")[0];
+
+            if (!attendanceDates.has(dateString)) {
+                break;
+            }
+
+            streak += 1;
+
+            currentDate.setDate(
+                currentDate.getDate() - 1
+            );
+        }
+
+        return streak;
     }
 
     function openAddModal() {
@@ -77,7 +187,21 @@ function Members() {
             return;
         }
 
-        setMembers((current) => [...current, data]);
+        setMembers((current) =>
+            [...current, data].sort((a, b) =>
+                a.full_name.localeCompare(
+                    b.full_name,
+                    undefined,
+                    { sensitivity: "base" }
+                )
+            )
+        );
+
+        setStreaks((current) => ({
+            ...current,
+            [data.id]: 0,
+        }));
+
         setFullName("");
         setShowModal(false);
         setSaving(false);
@@ -106,8 +230,20 @@ function Members() {
         }
 
         setMembers((current) =>
-            current.filter((item) => item.id !== member.id)
+            current.filter(
+                (item) => item.id !== member.id
+            )
         );
+
+        setStreaks((current) => {
+            const updated = { ...current };
+            delete updated[member.id];
+            return updated;
+        });
+    }
+
+    function openMember(memberId) {
+        navigate(`/admin/members/${memberId}`);
     }
 
     return (
@@ -116,7 +252,8 @@ function Members() {
                 <div>
                     <h1>Members</h1>
                     <p>
-                        Manage the members in your attendance system.
+                        Manage the members in your attendance
+                        system.
                     </p>
                 </div>
 
@@ -139,6 +276,7 @@ function Members() {
                 <div className="members-table-header">
                     <span>Member</span>
                     <span>Joined</span>
+                    <span>Current Streak</span>
                     <span>Actions</span>
                 </div>
 
@@ -156,7 +294,13 @@ function Members() {
                             className="member-row"
                             key={member.id}
                         >
-                            <div className="member-info">
+                            <button
+                                className="member-info member-details-link"
+                                type="button"
+                                onClick={() =>
+                                    openMember(member.id)
+                                }
+                            >
                                 <div className="member-avatar">
                                     {member.full_name
                                         .charAt(0)
@@ -166,7 +310,7 @@ function Members() {
                                 <strong>
                                     {member.full_name}
                                 </strong>
-                            </div>
+                            </button>
 
                             <span className="member-joined">
                                 {new Date(
@@ -174,12 +318,24 @@ function Members() {
                                 ).toLocaleDateString()}
                             </span>
 
+                            <span className="member-streak">
+                                🔥{" "}
+                                <strong>
+                                    {streaks[member.id] ?? 0}
+                                </strong>{" "}
+                                {streaks[member.id] === 1
+                                    ? "day"
+                                    : "days"}
+                            </span>
+
                             <div className="member-actions">
                                 <button
                                     className="delete-button"
                                     type="button"
                                     onClick={() =>
-                                        handleDeleteMember(member)
+                                        handleDeleteMember(
+                                            member
+                                        )
                                     }
                                 >
                                     Delete
@@ -194,7 +350,10 @@ function Members() {
                 <div
                     className="modal-overlay"
                     onMouseDown={(e) => {
-                        if (e.target === e.currentTarget) {
+                        if (
+                            e.target ===
+                            e.currentTarget
+                        ) {
                             closeAddModal();
                         }
                     }}
@@ -204,7 +363,8 @@ function Members() {
                             <div>
                                 <h2>Add Member</h2>
                                 <p>
-                                    Add a new member to the system.
+                                    Add a new member to the
+                                    system.
                                 </p>
                             </div>
 
@@ -225,11 +385,14 @@ function Members() {
                         >
                             <label>
                                 Full Name
+
                                 <input
                                     type="text"
                                     value={fullName}
                                     onChange={(e) =>
-                                        setFullName(e.target.value)
+                                        setFullName(
+                                            e.target.value
+                                        )
                                     }
                                     placeholder="Enter member name"
                                     autoFocus
@@ -243,7 +406,9 @@ function Members() {
                                 <button
                                     type="button"
                                     className="modal-cancel"
-                                    onClick={closeAddModal}
+                                    onClick={
+                                        closeAddModal
+                                    }
                                     disabled={saving}
                                 >
                                     Cancel
