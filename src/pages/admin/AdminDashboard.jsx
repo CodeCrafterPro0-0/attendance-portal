@@ -104,7 +104,7 @@ function AdminDashboard() {
                 <div className="stat-card">
                     <span className="stat-label">Total Members</span>
                     <strong className="stat-value">
-                        {loading ? "—" : stats.totalMembers}
+                        {loading ? "—" : stats.totalMembers - 1}
                     </strong>
                 </div>
 
@@ -125,14 +125,14 @@ function AdminDashboard() {
                 <div className="stat-card">
                     <span className="stat-label">Early Leave</span>
                     <strong className="stat-value">
-                        {loading ? "—" : stats.earlyLeave}
+                        {loading ? "—" : stats.earlyLeave - 1}
                     </strong>
                 </div>
 
                 <div className="stat-card">
                     <span className="stat-label">Absent Today</span>
                     <strong className="stat-value">
-                        {loading ? "—" : stats.absent}
+                        {loading ? "—" : stats.absent-1}
                     </strong>
                 </div>
             </div>
