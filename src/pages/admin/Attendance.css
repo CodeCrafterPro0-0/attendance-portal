@@ -25,6 +25,22 @@
     font-size: 15px;
 }
 
+.attendance-date-picker {
+    padding: 10px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    background: #ffffff;
+    color: #111827;
+    font: inherit;
+    cursor: pointer;
+}
+
+.attendance-date-picker:focus {
+    outline: none;
+    border-color: #111827;
+    box-shadow: 0 0 0 3px rgba(17, 24, 39, 0.08);
+}
+
 .attendance-error {
     margin-bottom: 20px;
     padding: 14px 16px;

@@ -31,9 +31,10 @@ function Attendance() {
     const today = getDate();
     const yesterday = getDate(-1);
 
+    // Any past date or today can be edited.
+    // Future dates cannot be selected or edited.
+    const canEdit = selectedDate <= today;
     const isPastDate = selectedDate < today;
-    const canEdit =
-        selectedDate === today || selectedDate === yesterday;
 
     useEffect(() => {
         loadAttendance();
@@ -306,11 +307,21 @@ function Attendance() {
                 >
                     Yesterday
                 </button>
+
+                <input
+                    className="attendance-date-picker"
+                    type="date"
+                    value={selectedDate}
+                    max={today}
+                    onChange={(e) =>
+                        setSelectedDate(e.target.value)
+                    }
+                />
             </div>
 
-            {!canEdit && (
+            {canEdit && (
                 <div className="attendance-info">
-                    Older attendance records are view-only.
+                    You can edit attendance for this date.
                 </div>
             )}
 
@@ -384,7 +395,9 @@ function Attendance() {
                                                 Absent
                                             </button>
                                         </>
-                                    ) : record && editing && canEdit ? (
+                                    ) : record &&
+                                      editing &&
+                                      canEdit ? (
                                         renderEditActions(
                                             member,
                                             record,

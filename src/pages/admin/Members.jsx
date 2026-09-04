@@ -36,6 +36,19 @@ function Members() {
         setLoading(false);
     }
 
+    function openAddModal() {
+        setFullName("");
+        setError("");
+        setShowModal(true);
+    }
+
+    function closeAddModal() {
+        if (saving) return;
+
+        setShowModal(false);
+        setFullName("");
+    }
+
     async function handleAddMember(e) {
         e.preventDefault();
 
@@ -102,12 +115,15 @@ function Members() {
             <div className="members-header">
                 <div>
                     <h1>Members</h1>
-                    <p>Manage the members in your attendance system.</p>
+                    <p>
+                        Manage the members in your attendance system.
+                    </p>
                 </div>
 
                 <button
                     className="add-member-button"
-                    onClick={() => setShowModal(true)}
+                    type="button"
+                    onClick={openAddModal}
                 >
                     + Add Member
                 </button>
@@ -147,9 +163,9 @@ function Members() {
                                         .toUpperCase()}
                                 </div>
 
-                                <div>
-                                    <strong>{member.full_name}</strong>
-                                </div>
+                                <strong>
+                                    {member.full_name}
+                                </strong>
                             </div>
 
                             <span className="member-joined">
@@ -159,13 +175,6 @@ function Members() {
                             </span>
 
                             <div className="member-actions">
-                                <button
-                                    className="view-button"
-                                    type="button"
-                                >
-                                    View
-                                </button>
-
                                 <button
                                     className="delete-button"
                                     type="button"
@@ -184,31 +193,37 @@ function Members() {
             {showModal && (
                 <div
                     className="modal-overlay"
-                    onClick={() => setShowModal(false)}
+                    onMouseDown={(e) => {
+                        if (e.target === e.currentTarget) {
+                            closeAddModal();
+                        }
+                    }}
                 >
-                    <div
-                        className="member-modal"
-                        onClick={(e) => e.stopPropagation()}
-                    >
+                    <div className="member-modal">
                         <div className="modal-header">
                             <div>
                                 <h2>Add Member</h2>
-                                <p>Add a new member to the system.</p>
+                                <p>
+                                    Add a new member to the system.
+                                </p>
                             </div>
 
                             <button
                                 className="modal-close"
                                 type="button"
-                                onClick={() =>
-                                    setShowModal(false)
-                                }
+                                onClick={closeAddModal}
+                                disabled={saving}
+                                aria-label="Close"
                             >
                                 ×
                             </button>
                         </div>
 
-                        <form onSubmit={handleAddMember}>
-                            <label className="modal-field">
+                        <form
+                            className="member-form"
+                            onSubmit={handleAddMember}
+                        >
+                            <label>
                                 Full Name
                                 <input
                                     type="text"
@@ -218,6 +233,7 @@ function Members() {
                                     }
                                     placeholder="Enter member name"
                                     autoFocus
+                                    autoComplete="off"
                                     disabled={saving}
                                     required
                                 />
@@ -227,9 +243,7 @@ function Members() {
                                 <button
                                     type="button"
                                     className="modal-cancel"
-                                    onClick={() =>
-                                        setShowModal(false)
-                                    }
+                                    onClick={closeAddModal}
                                     disabled={saving}
                                 >
                                     Cancel
@@ -237,8 +251,11 @@ function Members() {
 
                                 <button
                                     type="submit"
-                                    className="modal-save"
-                                    disabled={saving}
+                                    className="modal-submit"
+                                    disabled={
+                                        saving ||
+                                        !fullName.trim()
+                                    }
                                 >
                                     {saving
                                         ? "Adding..."
