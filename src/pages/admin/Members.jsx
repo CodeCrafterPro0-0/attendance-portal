@@ -10,6 +10,50 @@ function getDate(offset = 0) {
     return date.toISOString().split("T")[0];
 }
 
+function calculateCurrentStreak(records, memberId) {
+    const attendedDates = new Set(
+        records
+            .filter(
+                (record) =>
+                    record.member_id === memberId &&
+                    record.status === "present"
+            )
+            .map((record) => record.attendance_date)
+    );
+
+    if (attendedDates.size === 0) {
+        return 0;
+    }
+
+    const today = getDate();
+    let currentDate = new Date();
+
+    if (!attendedDates.has(today)) {
+        currentDate.setDate(
+            currentDate.getDate() - 1
+        );
+    }
+
+    let streak = 0;
+
+    while (true) {
+        const dateString =
+            currentDate.toISOString().split("T")[0];
+
+        if (!attendedDates.has(dateString)) {
+            break;
+        }
+
+        streak += 1;
+
+        currentDate.setDate(
+            currentDate.getDate() - 1
+        );
+    }
+
+    return streak;
+}
+
 function Members() {
     const navigate = useNavigate();
 
@@ -21,6 +65,9 @@ function Members() {
     const [showModal, setShowModal] = useState(false);
     const [fullName, setFullName] = useState("");
     const [saving, setSaving] = useState(false);
+
+    const [editingMember, setEditingMember] =
+        useState(null);
 
     useEffect(() => {
         loadMembers();
@@ -37,7 +84,9 @@ function Members() {
             .from("profiles")
             .select("id, full_name, created_at")
             .eq("role", "member")
-            .order("full_name", { ascending: true });
+            .order("full_name", {
+                ascending: true,
+            });
 
         if (membersError) {
             console.error(membersError);
@@ -66,7 +115,9 @@ function Members() {
             )
             .in(
                 "member_id",
-                membersList.map((member) => member.id)
+                membersList.map(
+                    (member) => member.id
+                )
             )
             .order("attendance_date", {
                 ascending: false,
@@ -74,7 +125,9 @@ function Members() {
 
         if (attendanceError) {
             console.error(attendanceError);
-            setError("Unable to load member streaks.");
+            setError(
+                "Unable to load member streaks."
+            );
             setLoading(false);
             return;
         }
@@ -93,73 +146,29 @@ function Members() {
         setLoading(false);
     }
 
-    function calculateCurrentStreak(records, memberId) {
-        const memberRecords = records
-            .filter(
-                (record) =>
-                    record.member_id === memberId &&
-                    record.status === "present"
-            )
-            .sort((a, b) =>
-                b.attendance_date.localeCompare(
-                    a.attendance_date
-                )
-            );
-
-        if (memberRecords.length === 0) {
-            return 0;
-        }
-
-        const attendanceDates = new Set(
-            memberRecords.map(
-                (record) => record.attendance_date
-            )
-        );
-
-        let streak = 0;
-        let currentDate = new Date();
-
-        // If today hasn't been marked yet, start from yesterday.
-        const today = getDate();
-
-        if (!attendanceDates.has(today)) {
-            currentDate.setDate(
-                currentDate.getDate() - 1
-            );
-        }
-
-        while (true) {
-            const dateString =
-                currentDate.toISOString().split("T")[0];
-
-            if (!attendanceDates.has(dateString)) {
-                break;
-            }
-
-            streak += 1;
-
-            currentDate.setDate(
-                currentDate.getDate() - 1
-            );
-        }
-
-        return streak;
-    }
-
     function openAddModal() {
+        setEditingMember(null);
         setFullName("");
         setError("");
         setShowModal(true);
     }
 
-    function closeAddModal() {
+    function openEditModal(member) {
+        setEditingMember(member);
+        setFullName(member.full_name);
+        setError("");
+        setShowModal(true);
+    }
+
+    function closeModal() {
         if (saving) return;
 
         setShowModal(false);
+        setEditingMember(null);
         setFullName("");
     }
 
-    async function handleAddMember(e) {
+    async function handleSaveMember(e) {
         e.preventDefault();
 
         const trimmedName = fullName.trim();
@@ -171,13 +180,68 @@ function Members() {
         setSaving(true);
         setError("");
 
-        const { data, error } = await supabase
+        // Editing existing member
+        if (editingMember) {
+            const {
+                data,
+                error,
+            } = await supabase
+                .from("profiles")
+                .update({
+                    full_name: trimmedName,
+                })
+                .eq("id", editingMember.id)
+                .select(
+                    "id, full_name, created_at"
+                )
+                .single();
+
+            if (error) {
+                console.error(error);
+                setError(
+                    "Unable to update member."
+                );
+                setSaving(false);
+                return;
+            }
+
+            setMembers((current) =>
+                current
+                    .map((member) =>
+                        member.id === data.id
+                            ? data
+                            : member
+                    )
+                    .sort((a, b) =>
+                        a.full_name.localeCompare(
+                            b.full_name,
+                            undefined,
+                            {
+                                sensitivity:
+                                    "base",
+                            }
+                        )
+                    )
+            );
+
+            closeModal();
+            setSaving(false);
+            return;
+        }
+
+        // Adding new member
+        const {
+            data,
+            error,
+        } = await supabase
             .from("profiles")
             .insert({
                 full_name: trimmedName,
                 role: "member",
             })
-            .select("id, full_name, created_at")
+            .select(
+                "id, full_name, created_at"
+            )
             .single();
 
         if (error) {
@@ -192,7 +256,9 @@ function Members() {
                 a.full_name.localeCompare(
                     b.full_name,
                     undefined,
-                    { sensitivity: "base" }
+                    {
+                        sensitivity: "base",
+                    }
                 )
             )
         );
@@ -202,8 +268,7 @@ function Members() {
             [data.id]: 0,
         }));
 
-        setFullName("");
-        setShowModal(false);
+        closeModal();
         setSaving(false);
     }
 
@@ -243,7 +308,9 @@ function Members() {
     }
 
     function openMember(memberId) {
-        navigate(`/admin/members/${memberId}`);
+        navigate(
+            `/admin/members/${memberId}`
+        );
     }
 
     return (
@@ -251,9 +318,10 @@ function Members() {
             <div className="members-header">
                 <div>
                     <h1>Members</h1>
+
                     <p>
-                        Manage the members in your attendance
-                        system.
+                        Manage the members in your
+                        attendance system.
                     </p>
                 </div>
 
@@ -298,7 +366,9 @@ function Members() {
                                 className="member-info member-details-link"
                                 type="button"
                                 onClick={() =>
-                                    openMember(member.id)
+                                    openMember(
+                                        member.id
+                                    )
                                 }
                             >
                                 <div className="member-avatar">
@@ -321,14 +391,30 @@ function Members() {
                             <span className="member-streak">
                                 🔥{" "}
                                 <strong>
-                                    {streaks[member.id] ?? 0}
+                                    {streaks[
+                                        member.id
+                                    ] ?? 0}
                                 </strong>{" "}
-                                {streaks[member.id] === 1
+                                {streaks[
+                                    member.id
+                                ] === 1
                                     ? "day"
                                     : "days"}
                             </span>
 
                             <div className="member-actions">
+                                <button
+                                    className="edit-button"
+                                    type="button"
+                                    onClick={() =>
+                                        openEditModal(
+                                            member
+                                        )
+                                    }
+                                >
+                                    Edit
+                                </button>
+
                                 <button
                                     className="delete-button"
                                     type="button"
@@ -354,24 +440,30 @@ function Members() {
                             e.target ===
                             e.currentTarget
                         ) {
-                            closeAddModal();
+                            closeModal();
                         }
                     }}
                 >
                     <div className="member-modal">
                         <div className="modal-header">
                             <div>
-                                <h2>Add Member</h2>
+                                <h2>
+                                    {editingMember
+                                        ? "Edit Member"
+                                        : "Add Member"}
+                                </h2>
+
                                 <p>
-                                    Add a new member to the
-                                    system.
+                                    {editingMember
+                                        ? "Update the member's name."
+                                        : "Add a new member to the system."}
                                 </p>
                             </div>
 
                             <button
                                 className="modal-close"
                                 type="button"
-                                onClick={closeAddModal}
+                                onClick={closeModal}
                                 disabled={saving}
                                 aria-label="Close"
                             >
@@ -381,7 +473,9 @@ function Members() {
 
                         <form
                             className="member-form"
-                            onSubmit={handleAddMember}
+                            onSubmit={
+                                handleSaveMember
+                            }
                         >
                             <label>
                                 Full Name
@@ -391,7 +485,8 @@ function Members() {
                                     value={fullName}
                                     onChange={(e) =>
                                         setFullName(
-                                            e.target.value
+                                            e.target
+                                                .value
                                         )
                                     }
                                     placeholder="Enter member name"
@@ -407,7 +502,7 @@ function Members() {
                                     type="button"
                                     className="modal-cancel"
                                     onClick={
-                                        closeAddModal
+                                        closeModal
                                     }
                                     disabled={saving}
                                 >
@@ -423,8 +518,12 @@ function Members() {
                                     }
                                 >
                                     {saving
-                                        ? "Adding..."
-                                        : "Add Member"}
+                                        ? editingMember
+                                            ? "Saving..."
+                                            : "Adding..."
+                                        : editingMember
+                                            ? "Save Changes"
+                                            : "Add Member"}
                                 </button>
                             </div>
                         </form>

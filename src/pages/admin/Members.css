@@ -315,6 +315,41 @@
     cursor: not-allowed;
 }
 
+.member-details-link {
+    width: 100%;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+}
+
+.member-details-link:hover strong {
+    text-decoration: underline;
+}
+
+.edit-button {
+    padding: 8px 13px;
+    border: 1px solid #d1d5db;
+    border-radius: 7px;
+    background: #ffffff;
+    color: #374151;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.edit-button:hover {
+    background: #f3f4f6;
+}
+
+.member-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
 /* Mobile */
 
 @media (max-width: 850px) {
